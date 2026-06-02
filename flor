@@ -1,0 +1,106 @@
+
+clear all
+close all
+clc
+
+%1 TIEMPO %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+tf = 6.5;           
+ts = 0.002;         
+t = 0:ts:tf;        
+N = length(t);      
+
+%2 CONDICIONES INICIALES %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+x1(1) = 50;         % Inicia en el extremo derecho
+y1(1) = 0;          
+phi(1) = pi/2;      % Apuntando hacia arriba
+
+a = 2.5;            
+
+hx(1) = x1(1) + a * cos(phi(1)); 
+hy(1) = y1(1) + a * sin(phi(1)); 
+
+%3 TRAYECTORIA DESEADA %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+hxd = 50 * cos(7*t) .* cos(t);
+hyd = 50 * cos(7*t) .* sin(t);
+
+hxdp = -350 * sin(7*t) .* cos(t) - 50 * cos(7*t) .* sin(t);
+hydp = -350 * sin(7*t) .* sin(t) + 50 * cos(7*t) .* cos(t);
+
+%4 CONTROL, BUCLE DE SIMULACION %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+for k=1:N 
+    hxe(k) = hxd(k) - hx(k);
+    hye(k) = hyd(k) - hy(k);
+    
+    he = [hxe(k); hye(k)];
+    Error(k) = sqrt(hxe(k)^2 + hye(k)^2);
+    
+    J = [cos(phi(k)) -a*sin(phi(k));... 
+         sin(phi(k))  a*cos(phi(k))];
+        
+    K = [2 0;...    % Ganancias relajadas para evitar oscilaciones
+         0 2];
+    
+    hdp = [hxdp(k); hydp(k)];
+    
+    qpRef = pinv(J) * (hdp + K*he);
+    v(k) = qpRef(1);   
+    w(k) = qpRef(2);   
+    
+%5 APLICACIÓN DE CONTROL AL ROBOT %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    phi(k+1) = phi(k) + w(k)*ts; 
+            
+    xp1 = v(k) * cos(phi(k)); 
+    yp1 = v(k) * sin(phi(k));
+ 
+    x1(k+1) = x1(k) + ts*xp1; 
+    y1(k+1) = y1(k) + ts*yp1; 
+    
+    hx(k+1) = x1(k+1) + a * cos(phi(k+1)); 
+    hy(k+1) = y1(k+1) + a * sin(phi(k+1));
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%% SIMULACION VIRTUAL 3D %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+scene = figure;  
+set(scene, 'Color', 'white'); 
+set(gca, 'FontWeight', 'bold');
+sizeScreen = get(0, 'ScreenSize'); 
+set(scene, 'position', sizeScreen); 
+camlight('headlight'); 
+axis equal; 
+grid on; 
+box on; 
+xlabel('x(m)'); ylabel('y(m)'); zlabel('z(m)'); 
+view([-0.1 90]); 
+
+axis([-60 60 -60 60 0 1]); 
+
+scale = 4;
+MobileRobot_5; 
+H1 = MobilePlot_4(x1(1), y1(1), phi(1), scale); hold on;
+
+H2 = plot3(hx(1), hy(1), 0, 'r', 'lineWidth', 2);
+H3 = plot3(hxd, hyd, zeros(1, N), 'g', 'lineWidth', 2); 
+
+step = 20; % 
+for k=1:step:N
+    delete(H1);    
+    delete(H2);
+    
+    H1 = MobilePlot_4(x1(k), y1(k), phi(k), scale);
+    H2 = plot3(hx(1:k), hy(1:k), zeros(1, k), 'r', 'lineWidth', 2); 
+    
+    pause(0.001); % Pausa mínima
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Gráficas de Rendimiento %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+graph = figure;  
+set(graph, 'position', sizeScreen); 
+
+subplot(311)
+plot(t, v, 'b', 'LineWidth', 2), grid('on'), xlabel('Tiempo [s]'), ylabel('m/s'), legend('Velocidad Lineal (v)');
+
+subplot(312)
+plot(t, w, 'g', 'LineWidth', 2), grid('on'), xlabel('Tiempo [s]'), ylabel('[rad/s]'), legend('Velocidad Angular (w)');
+
+subplot(313)
+plot(t, Error, 'r', 'LineWidth', 2), grid('on'), xlabel('Tiempo [s]'), ylabel('[metros]'), legend('Error de posición (m)');
